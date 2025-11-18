@@ -1,4 +1,6 @@
-setwd("C:\\Users\\liv_u\\Desktop\\GitHub\\Omics_Projects\\scRNA_analysis")
+# set working dir
+setwd("path/to/dir")
+
 # scRNA Data Analysis in R
 # Following [Arpudhamary V.'s](https://github.com/Marydoss-25/scRNA-Data-analysis-) tutorial for beginners in scRNA analysis, this notebook will learn to use the Seurat package and will perform:,
     # Seurat object conversion,
