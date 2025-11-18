@@ -1,4 +1,4 @@
-
+setwd("C:\\Users\\liv_u\\Desktop\\GitHub\\Omics_Projects\\scRNA_analysis")
 # scRNA Data Analysis in R
 # Following [Arpudhamary V.'s](https://github.com/Marydoss-25/scRNA-Data-analysis-) tutorial for beginners in scRNA analysis, this notebook will learn to use the Seurat package and will perform:,
     # Seurat object conversion,
@@ -38,6 +38,7 @@ nsclc_raw <- Read10X_h5(filename="./Data/20k_NSCLC_DTC_3p_nextgem_Multiplex_coun
 nsclc_counts<- nsclc_raw$`Gene Expression`
 # view structure 
 str(nsclc_counts) 
+# rm(nsclc_raw)
 
 # create seurat obj
 seurat_nsclc <- CreateSeuratObject(counts = nsclc_counts, project="NSCLC", min.cells = 3, min.features = 200)
@@ -68,10 +69,10 @@ View(seurat_nsclc@meta.data)
 # visualise QC metrics
 # individual feature violin plots, ncol=3
 VlnPlot(seurat_nsclc, features=c("nCount_RNA", "nFeature_RNA", "percent.MT"), ncol=3)
-ggsave("./Data/ViolinPlots.png")
+ggsave("./Data/ViolinPlots.png", width = 8, height = 6)
 # correlation bw features w lin reg trendline 
 FeatureScatter(seurat_nsclc, feature1 = "nCount_RNA", feature2="nFeature_RNA")+geom_smooth(method="lm")
-ggsave("./Data/ScatterPlots.png")
+ggsave("./Data/ScatterPlots.png", width = 8, height = 6)
 # based on the Feature Scatter plot, we can further filter artefacts
 # A) if cells accumulate in lower right corner of the plot [Count=150k, Fetaure=10k], indicates exp captured few genes which are sequenced repeatedly, leading to high transcript counts
 # B) if cells accumulate in the top left corner [Count=20k, Feature=30k], indicates exp captured a high number of genes but they were not deeply sequenced 
@@ -109,7 +110,7 @@ seurat_nsclc<- FindVariableFeatures(seurat_nsclc, selection.method = "vst", nfea
 top10 <- head(VariableFeatures(seurat_nsclc), 10)
 plot1<- VariableFeaturePlot(seurat_nsclc)
 LabelPoints(plot=plot1, points = top10, repel=TRUE)
-ggsave("./Data/VariableFeaturesPlot.png", plot=plot1)
+ggsave("./Data/VariableFeaturesPlot.png", width = 8, height = 6)
   # variable gene count = 2000
   # non-variable gene count = 27553
 
@@ -136,7 +137,7 @@ print(seurat_nsclc[["pca"]], dim=1:5, nfeatures=5)
 DimHeatmap(seurat_nsclc, dims=1:5, cells=500, balanced=TRUE)
 # heatmap:
 #   X== cells, y== PC components, yellow== high expression, purple == low expression 
-ggsave("./Data/PC_Heatmap.png")
+ggsave("./Data/PC_Heatmap.png", width = 8, height = 6)
 
 # determine dimensionality of data 
 # use elbow plot to ID significant PCs which capture majority of biological signals 
@@ -164,4 +165,4 @@ Idents(seurat_nsclc)
 # After clustering, group cells of similar types together at low dim
 seurat_nsclc <- RunUMAP(seurat_nsclc, dims=1:15)
 DimPlot(seurat_nsclc, reduction = "umap", label=TRUE)
-ggsave("./Data/UMAP.png")
+ggsave("./Data/UMAP.png", width = 8, height = 6)
