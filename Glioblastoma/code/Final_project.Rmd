@@ -1,0 +1,286 @@
+---
+title: "Summary"
+author: ""
+output: html_document
+date: "2025-04-15"
+---
+Introduction: 
+
+```{r setup, echo=TRUE, results='hide', warning=FALSE, message=FALSE}
+
+library(tidyverse)           # Data wrangling (contains dplyr, ggplot2,...)
+# library(ggplot2)           # For plotting, redundant as it's already in tidyverse
+library(GEOquery)            # To download datasets from GEO
+library(limma)               # DEA (linear models for microarrays but usable for RNA-seq)
+library(ggpubr)              # To make publication-ready plot
+library(gridExtra)           # Combine ggplots
+library(org.Hs.eg.db)        # Human gene annotations
+
+# library(EnhancedVolcano)   # To make more beautiful volcano plots (not used below)
+library(EnhancedVolcano)   # To make more beautiful volcano plots 
+library(clusterProfiler)     # Enrichment analysis (GO, KEGG)
+library(enrichplot)          # Plotting enrichment plot
+# library(ggpubr)
+# library(gridExtra)
+library(DOSE)
+```
+
+# Part A: Loading data set and initial data exploration.
+## 1. Loading data set.
+
+Load data set from GEO (not the platform info). In case the dataset is associated with multiple platforms, we specify the GLP (platform) of 'GPL27956'.
+```{r load_dataset, include=FALSE}
+gset <- getGEO("GSE231994", GSEMatrix=TRUE, getGPL=FALSE)
+if (length(gset) > 1) idx <- grep("GPL27956", attr(gset, "names")) else idx <- 1 
+gset <- gset[[idx]] 
+```
+If > 1 (multiple datasets), idx = location of 'GPL27956' under gset 'names', otherwise idx = 1. 
+
+gset <- content of gset[[data folder of interest]]. basically removes one extraneous level of folders; if length(gset) > 1 , has multiple folders --> wanted the folder with GPL27956 in title.
+
+Some data exploratory to decide analysis method:
+
+
+## 2. Extract expression and phenotype data and initial data exploration.
+```{r get_exprs_info, echo=TRUE}
+expr_data <- exprs(gset)  # Get expression matrix as df
+pheno_data <- pData(gset) # Get phenotype data as df
+any(is.na(expr_data))
+any(is.na(pheno_data))
+summary(gset)
+dim(gset)
+expr_df <- as.data.frame(expr_data)
+head(expr_df)
+```
+``` {r initial_box_plot, fig.cap="Boxplot of expression data"}
+boxplot(expr_data, main = "Boxplot of Expression Values", las=2, col="lightblue", outline=FALSE)
+```
+The assayData/ expression data contains numeric values with decimals, indicating that it is normalized (not count data), so we will use the limma package for subsequent DEA and GSEA.
+
+We performed quality check of exprs data
+
+Interpretation: want a similar distribution across our samples; medians are aligned
+Suggests data is comparable across our samples; no technical bias
+
+```{r pca, fig.cap="PCA plot of expression data"}
+pca <- prcomp(t(expr_data), scale. = TRUE)
+pca_df <- data.frame(pca$x, Sample = rownames(pData(gset)))
+
+pca_plot <- pca_df %>% 
+            ggplot(aes(PC1, PC2, label = Sample)) + 
+              geom_point(aes(color=pheno_data$characteristics_ch1.1)) + 
+              geom_text(size=2, vjust = 1.5) + 
+              theme_classic() + 
+              labs(title = "PCA of Samples")
+
+pca_plot
+```
+This PCA plot wasn't very helpful. It might be because these are all glioblastoma samples so the differences weren't significant enough to be visualized on PCA plot.
+
+
+# Part B: Differential Expression Analysis.
+## 1. Clean and verify group labels.
+First we chose the characteristics of the data set for analysis (disease state: PD or psPD). We then cleaned up the content of that column by removing the "disease state: " part and retaining only the actual diagnostic, confirmed the clean-up with table().
+```{r data_cleanup}
+diagnosis_df<- pheno_data %>% dplyr::select(characteristics_ch1.1) 
+diagnosis_df$characteristics_ch1.1 <- gsub("disease state: ", "", diagnosis_df$characteristics_ch1.1) 
+table(diagnosis_df)
+diagnosis<-diagnosis_df$characteristics_ch1.1 
+```
+
+## 2. Create design matrix WITHOUT INTERCEPT (each group gets its own column).
+```{r design_matrix}
+design <- model.matrix(~0 + diagnosis, diagnosis_df) 
+colnames(design) <- make.names(levels(factor(diagnosis))) 
+print(colnames(design))
+all(colnames(expr_data) == rownames(design))
+```
+
+We made a design matrix WITHOUT INTERCEPT (each group gets its own column). The intercept is essentially the "reference" (or baseline) group, from which we will base the comparisons on (example: evaluate how different group B is compared to group A). 
+
+In this case if we make a design matrix with intercept, the 'PD' group will become the baseline and essentially "locks" the comparison to only seeing the relative difference from 'psPD' to 'PD'. This will prevent any other down-stream customization for analysis (psPD to PD, PD to psPD, psPD/2 to PD,...), hence why we needed a design matrix WITHOUT intercept.
+
+Then we needed correctly name the column names as the values within the diagnosis column ('PD' or 'psPD'). First we converted the values in 'diagnosis' column to categorical factors, extracted those unique factors, cleaned up those factors to make it appropriate for column names (by removing white space, parenthesis,...). 
+
+This way, the column names were assigned by alphabetical order, which also worked with the design matrix was also made based on alphabetical order.
+
+Before proceeding with DEA, we need to check if the column names of expression data and row names of design matrix aligns properly, as those contain the sample names. This is required by lmFit! If they don't align, we can reorder it:
+expr_data <- expr_data[, rownames(design)]
+
+## 3. Differential expression analysis with LIMMA package.
+After preparing and ensuring the expression matrix and design matrix were properly aligned, we can now perform DEA using LIMMA.
+
+- First we fitted the model using lmFit() to analyze how gene expression is affected by experimental factors (PD vs psPD).
+
+- Then, we applied contrasts with contrasts.fit() to test specific differences. 
+Here we compare the average expression in PD, MINUS the average expression in psPD, aka to compare the gene expression in PD relative to psPD. 
+
+  - The part 'levels=design' is telling the program to use the columns of the design matrix as the basis for the contrast, so the column names become the available LEVELS to use for comparison.
+  
+  - Then we applied the contrast to the linear model. This will give us the log fold change, standard errors, t-statistics, and residual degrees of freedom.
+
+- Finally, we moderated and normalized the results using eBayes() to obtain more reliable p-values.
+
+```{r dea}
+fit <- lmFit(expr_data, design) 
+contrast_matrix <- makeContrasts(psPD - PD, levels=design) 
+fit2 <- contrasts.fit(fit, contrast_matrix) 
+fit2 <- eBayes(fit2)
+```
+
+
+## 4. Get results (top differentially expressed genes)
+Extract results using topTable() to identify significant genes.
+
+topTable extracts top ranked genes from fit2 lm
+
+number = Inf means list all the genes possible (or can specify limited number of genes)
+
+adjust.method() specifies method for adjusting p-value. BH adjustment compares each p-value to a critical value/threshold and accounts for multiple testing error (increasing likeliness of erroneous correlation due to large number of samples).
+```{r results_extraction}
+results <- topTable(fit2, number=Inf, adjust.method="BH") 
+sig_genes <- results[results$adj.P.Val < 0.05 & abs(results$logFC) > 1, ]
+```
+Indexing results df to select for expression changes that fall into specified criteria:
+
+adjusted p-value < 0.05 and absolute of log fold-change greater than 1. 
+
+We look at absolute value bc log fold-change is positive for upregulation and negative for downregulation, and we care about both.
+
+## 5. Save results.
+```{r export_results}
+write.csv(results, "DE_results_PD_vs_psPD.csv") 
+```
+
+## 6. Visualization with Basic Volcano Plot.
+```{r basic_volcano_plot, fig.cap="Basic Volcano Plot of differential expressed genes between psPD and PD"}
+basic_vol_plot <- ggplot(results, aes(logFC, -log10(adj.P.Val))) +
+  geom_point(aes(color=abs(logFC) > 1 & adj.P.Val < 0.05)) +
+  scale_color_manual(values=c("gray","red")) +
+  geom_vline(xintercept=c(-1,1), linetype="dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype="dashed")
+basic_vol_plot
+```
+## 7. Enhanced Volcano Plot for Gene Expression analysis(Upregulated and Downregulated Genes)
+
+The enhanced volcano plot shows the overall significant gene expression, with pvalue >0.05.
+
+The right side shows the up-regulated genes(in red) that have a log fold change of >0; where these genes are unregulated in psPD when compared to PD.
+
+Whereas the left side shows the down regulated genes that have a log fold change of <0; where these genes are down regulated in psPD when compared to PD.
+
+Both up-regulated and down regulated genes are important to observe to aid in the understanding of the difference in gene expression when comparing the pseudo pd to actual pd in patients. Helps us develop patterns of recognition of psPD cases based on the state of the gene (upregualted vs downregulated)
+
+```{r enhanced_volcano_plot, fig.cap="Enhanced volcano plot showing differential gene expression of 750 cancer marker genes processed. Genes on left are prevalent in PD samples, while genes on right are prevalent in psPD samples. nPD=27, npsPD=21, log2FC>1.0, p>0.05."}
+
+EnhancedVolcano(results,
+                lab = rownames(results),                       # Probe IDs as labels
+                x = 'logFC',          
+                y = 'P.Value', 
+                ylim = c(0, 10),                           # Sets y-axis limit to -log10(p) = 10
+                xlab = bquote(~Log[2]~ 'fold change'),     # label for x axis
+                ylab = bquote(~-Log[10]~italic(P)),        # label for y axix
+                title = 'psPD vs PD Differential Expression',
+                subtitle = "Enhanced Volcano using limma",
+                subtitleLabSize = 10,                      # font size of subtitle
+                FCcutoff = 1,                              # Fold change threshold (|log2FC| > 1)
+                pCutoff = 0.05,                            # Significance threshold
+                pointSize = 1,                             # size of plot points
+                labSize = 3,                               # size of labels for plot points
+                col = c("black", "grey30", "royalblue", "red2"),
+                colAlpha = 0.7,                             # Transparency
+                legendPosition = 'right')+
+#  scale_x_continuous(trans = 'reverse') +                  # Properly reverses x-axis
+  theme_minimal(base_size = 14)
+
+```
+
+
+# Part C: Gene Set Enrichment Analysis
+Above, DEA was completed using limma from GEO dataset (GSE231994) and exported to a .csv file in 'DE_results_PD_vs_psPD.csv'. Here, we performed GSEA using clusterProfiler, specifically using Gene Ontology (GO) gene set.
+
+NOTE 1: In our class we use GSEA(), which is better if we're running enrichment on custom gene sets like Hallmark, MSigDB, KEGG,...
+
+NOTE 2: gseGO() for GO enrichment analysis uses random permutation, so use set.seed() to ensure reproducibility.
+
+
+## 1. Load DEA results.
+
+Source code used NanoString Rosalind for DE, but we did it manually with the {limma} package. We also changed the column name of gene names from "X" to "Symbol" for easier downstream analysis, as well as assigned the gene names as proper row names.
+
+```{r load_DEA_results}
+res <- read.csv("DE_results_PD_vs_psPD.csv")
+colnames(res)[1] <- "Symbol"
+rownames(res) <- res$Symbol
+head(res)
+```
+
+## 2. Matching gene symbols with EntrezID.
+In our results df, our genes are recorded as gene symbols (like TP53, GAPDH), but downstream tools like gseGO() expect standardized IDs like EntrezID, so we need to map the gene symbols to their corresponding entrez IDs.
+
+- First, access the human gene annotation database from package org.Hs.eg.db, a massive "table" containing gene symbols, Entrz ID, Ensembl ID, GO terms, and more.
+  - We provided it with our list of gene symbols for search up based on the content of $Symbol column, specified that this is gene symbols (SYMBOL), not RefSeqID, Accession Number, etc.
+  - Then told the code to save the EntrezID and its' matching Gene Symbol.
+- After geting the data frame matching EntrezID and Gene Symbol, we joined the two df together by their gene symbols using merge(), noting the different column names for each data frame (Symbol vs SYMBOL) by using both by.x= and by.y=. Then reassgined rownames as proper gene symbols.
+
+```{r match_EntrezID, message = FALSE}
+hs=org.Hs.eg.db
+IDs <- AnnotationDbi::select(hs, 
+                             keys = res$Symbol, 
+                             columns = c("ENTREZID", "SYMBOL"), 
+                             keytype = "SYMBOL") 
+res_merged <- merge(res, IDs, by.x = "Symbol", by.y = "SYMBOL") 
+rownames(res_merged) <- res_merged$Symbol
+```
+
+
+## 3. Create a ranked and named vector.
+Now we create a named ranked list/ vector for tools like gseGO(), which expect a numeric vector of log fold change named with EntrezID. We removed all NA values (an EntrezID was not found for that gene symbol, do not save) and duplication (save only the first instance). The list must also be ranked/ sorted in descending order.
+
+```{r ranked_named_vector}
+gene_list<- res_merged$logFC 
+names(gene_list) <- res_merged$ENTREZID 
+
+gene_list <- gene_list[!is.na(names(gene_list))]
+gene_list <- gene_list[!duplicated(names(gene_list))]
+gene_list <- sort(gene_list, decreasing = TRUE)
+```
+
+
+## 4. Gene Ontology Enrichment Analysis
+The gseGO() function works by random permutation, or randomly shuffling the ranked gene list over and over and calculates the enrichment score of those randomly generated lists. So if the actual enrichment score is much higher than those random gene lists, it means our results are statistically significant. However, because of that random permutation, the analysis can differ slightlyevery time we run the code. To ensure consistency, we'll run set.seed() and set the seed parameter in gseGO() to TRUE.
+
+```{r go}
+set.seed(1234)
+gse <- gseGO(geneList=gene_list, 
+             ont ="ALL",              # Ontology: biological process (BP), cellular components (CC), 
+                                      # molecular function (MF) or all 3 (ALL)
+             keyType = "ENTREZID",    # Gene list is named by Entrez IDs
+             pvalueCutoff = 0.05,     # Only keep GO terms with p < 0.05
+             verbose = TRUE,          # Print progress in console
+             OrgDb = hs,              # Organism database: human
+             seed = TRUE,             # Makes the permutation process reproducible
+             pAdjustMethod = "none")  # "none" for raw p-value or 
+                                      # "BH" (Benjamin-Hochberg) for FDR correction.
+```
+
+## 5. Visualize gene enrichment
+We used dotplot() to visualize GSEA, showing the top 10 most significantly enriched gene sets, splitting the plot into 2 column frames (on same row), one for activated/up-regulated gene sets and the other for suppressed/down-regulated gene sets.
+
+NOTE: If we don't split, the plot only shows ranking of enrichment score or stat significance, without accounting for whether the gene set is up or down-regulated. Then we can't see which pathways are more active in PD or psPD.
+```{r GSEA_visualization, fig.height=7, fig.cap="Dotplot showing gene ontology terms based on top 10 enriched gene sets for pseudoPD (left) and PD (right)."}
+dotplot(gse,                # GSEA results
+        showCategory=10,    # Show top 10 most significantly enriched gene sets
+        split=".sign") +    # Splits into 2 frame, activated/up-regulated vs one suppressed/down-regulated.
+  facet_grid(.~.sign)       # Splits into 2 columns, keeps plot on same row.
+```
+
+In the original paper, the author cropped out the "activated" and "suppressed" part of the plot and showed which part is more closely representing PD vs psPD to make it more comprehensible for readers. During DEA using limma, we set the contrast to psPD - PD, which was to see where psPD stands relative to PD.
+
+So if a gene set is up-regulated in psPD compared to PD, the pathway is "activated"; while down-regulated gene set in psPD relative to PD is "suppressed"
+
+To explain this in a different way: the "activated" pathways correspond to gene sets that are more upregulated in psPD, while "suppressed" pathway correspond to gene sets that are more upregulated in PD.
+
+
+
+
