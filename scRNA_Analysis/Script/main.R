@@ -161,8 +161,11 @@ Idents(seurat_nsclc) # levels indicate number of clusters
 Idents(seurat_nsclc) <- "RNA_snn_res.0.1" # set identity w resolution 
 Idents(seurat_nsclc)
 
-## Non Linear Clustering - TSNE//UMAP --------------
+## Non Linear Clustering - TSNE//UMAP ----
 # After clustering, group cells of similar types together at low dim
+
+# install UMAP
+reticulate::py_install(packages = "umap_learn")
+
 seurat_nsclc <- RunUMAP(seurat_nsclc, dims=1:15)
 DimPlot(seurat_nsclc, reduction = "umap", label=TRUE)
-ggsave("./Data/UMAP.png", width = 8, height = 6)
