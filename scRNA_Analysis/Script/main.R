@@ -1,4 +1,3 @@
-# setwd("C:\\Users\\liv_u\\Desktop\\GitHub\\Omics_Projects\\scRNA_Analysis")
 
 # scRNA Data Analysis in R
 # Following [Arpudhamary V.'s](https://github.com/Marydoss-25/scRNA-Data-analysis-) tutorial for beginners in scRNA analysis, this notebook will learn to use the Seurat package and will perform:,
@@ -13,13 +12,11 @@
     # Non-linear dimensionality reduction,
     # Cluster visualisation"
 
-# install.packages(c("Seurat", "SeuratDisk", "reticulate"))
-# install.packages("SeuratDisk")
+# install.packages(c("Seurat", "reticulate"))
 # reticulate::py_install("umap-learn")
 
 # load libraries 
 library(Seurat) # for sc analysis
-# library(SeuratDisk) # to convert & load Seurat objects across different formats
 library(tidyverse)
 
 # DATASET ---- 
@@ -46,7 +43,7 @@ str(nsclc_counts)
 seurat_nsclc <- CreateSeuratObject(counts = nsclc_counts, project="NSCLC", min.cells = 3, min.features = 200)
 
 # Code ----
-## QC ----
+## QC -------------------------
 # Current sc extraction methods take min 6h for tissue dissociation, sc dopamine capture, and mRNA extraction.
 # Extraction procedures can result in stressed or dead cells == low quality cells 
 # --> remove low quality cells during QC
@@ -71,9 +68,10 @@ View(seurat_nsclc@meta.data)
 # visualise QC metrics
 # individual feature violin plots, ncol=3
 VlnPlot(seurat_nsclc, features=c("nCount_RNA", "nFeature_RNA", "percent.MT"), ncol=3)
+ggsave("./Data/ViolinPlots.png")
 # correlation bw features w lin reg trendline 
 FeatureScatter(seurat_nsclc, feature1 = "nCount_RNA", feature2="nFeature_RNA")+geom_smooth(method="lm")
-
+ggsave("./Data/ScatterPlots.png")
 # based on the Feature Scatter plot, we can further filter artefacts
 # A) if cells accumulate in lower right corner of the plot [Count=150k, Fetaure=10k], indicates exp captured few genes which are sequenced repeatedly, leading to high transcript counts
 # B) if cells accumulate in the top left corner [Count=20k, Feature=30k], indicates exp captured a high number of genes but they were not deeply sequenced 
@@ -83,7 +81,7 @@ FeatureScatter(seurat_nsclc, feature1 = "nCount_RNA", feature2="nFeature_RNA")+g
 
 
 
-## Filtering Cells (Additional QC Metrics) ----
+## Filtering Cells (Additional QC Metrics) ------------------
 # 1. Higher presence of ribosomal genes = lower quality cell
 # 2. doublet = 2+ cells captured in the same droplet during capture --> mixed gene expression profile --> want to filter out doublets in sample
 
@@ -93,7 +91,7 @@ FeatureScatter(seurat_nsclc, feature1 = "nCount_RNA", feature2="nFeature_RNA")+g
 seurat_nsclc <- subset(seurat_nsclc, subset=nFeature_RNA>200 & nFeature_RNA<2500 & percent.MT<5)
 
 
-## Normalisation for Comparability ----
+## Normalisation for Comparability -------------------
 # for expression values to be comparable across cells, must normalise to account for differences in sequencing depth & library size.
 # Some cells have more total reads per UMI than others; if not normalised, highly sequenced cells would dominate the results.
 
@@ -102,7 +100,7 @@ seurat_nsclc<- NormalizeData(seurat_nsclc, normalization.method = "LogNormalize"
 
 
 
-## Filtering Highly Variable Features ----
+## Filtering Highly Variable Features -----------------
 # Highly variable genes exhibit cell to cell variation, highlighting the biological signal in sc datasets.
 
 # ID highly variable genes 
@@ -111,10 +109,11 @@ seurat_nsclc<- FindVariableFeatures(seurat_nsclc, selection.method = "vst", nfea
 top10 <- head(VariableFeatures(seurat_nsclc), 10)
 plot1<- VariableFeaturePlot(seurat_nsclc)
 LabelPoints(plot=plot1, points = top10, repel=TRUE)
+ggsave("./Data/VariableFeaturesPlot.png", plot=plot1)
   # variable gene count = 2000
   # non-variable gene count = 27553
 
-## Scaling ----
+## Scaling ---------------------------------
 # To remove unwanted sources of variation due to biology, like being in different stages of the cell cycle or technical noise from batch effects, we scale.
 # scaling --> highly expressed genes dont dominate ds analysis (PCA, clustering, etc)
 
@@ -130,19 +129,20 @@ str(seurat_nsclc)
 # scale.data = scaled data
 
 
-## Linear Dimensionality Reduction - PCA ----
+## Linear Dimensionality Reduction - PCA --------------
 seurat_nsclc <- RunPCA(seurat_nsclc, features = VariableFeatures(seurat_nsclc))
 # visualise
 print(seurat_nsclc[["pca"]], dim=1:5, nfeatures=5)
 DimHeatmap(seurat_nsclc, dims=1:5, cells=500, balanced=TRUE)
 # heatmap:
 #   X== cells, y== PC components, yellow== high expression, purple == low expression 
+ggsave("./Data/PC_Heatmap.png")
 
 # determine dimensionality of data 
 # use elbow plot to ID significant PCs which capture majority of biological signals 
 ElbowPlot(seurat_nsclc)
 
-## Clustering ----
+## Clustering ----------------------------
 # Find neighbours 
 # -> Find clusters; resolution of clusters: lower number == fewer clusters; resolution ranges 0 to 1 or more to see the best clusters
 # -> Choose the best resolution using DimPlot
@@ -160,11 +160,8 @@ Idents(seurat_nsclc) # levels indicate number of clusters
 Idents(seurat_nsclc) <- "RNA_snn_res.0.1" # set identity w resolution 
 Idents(seurat_nsclc)
 
-## Non Linear Clustering - TSNE//UMAP ----
+## Non Linear Clustering - TSNE//UMAP --------------
 # After clustering, group cells of similar types together at low dim
-
-# install UMAP
-reticulate::py_install(packages = "umap_learn")
-
 seurat_nsclc <- RunUMAP(seurat_nsclc, dims=1:15)
 DimPlot(seurat_nsclc, reduction = "umap", label=TRUE)
+ggsave("./Data/UMAP.png")
