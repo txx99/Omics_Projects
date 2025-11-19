@@ -1,5 +1,5 @@
 # set working dir
-setwd("path/to/dir")
+setwd("C:\\Users\\liv_u\\Desktop\\GitHub\\Omics_Projects\\scRNA_analysis")
 
 # scRNA Data Analysis in R
 # Following [Arpudhamary V.'s](https://github.com/Marydoss-25/scRNA-Data-analysis-) tutorial for beginners in scRNA analysis, this notebook will learn to use the Seurat package and will perform:,
@@ -40,7 +40,7 @@ nsclc_raw <- Read10X_h5(filename="./Data/20k_NSCLC_DTC_3p_nextgem_Multiplex_coun
 nsclc_counts<- nsclc_raw$`Gene Expression`
 # view structure 
 str(nsclc_counts) 
-# rm(nsclc_raw)
+rm(nsclc_raw)
 
 # create seurat obj
 seurat_nsclc <- CreateSeuratObject(counts = nsclc_counts, project="NSCLC", min.cells = 3, min.features = 200)
@@ -74,7 +74,7 @@ VlnPlot(seurat_nsclc, features=c("nCount_RNA", "nFeature_RNA", "percent.MT"), nc
 ggsave("./Data/ViolinPlots.png", width = 8, height = 6)
 # correlation bw features w lin reg trendline 
 FeatureScatter(seurat_nsclc, feature1 = "nCount_RNA", feature2="nFeature_RNA")+geom_smooth(method="lm")
-ggsave("./Data/ScatterPlots.png", width = 8, height = 6)
+ggsave("./Data/ScatterPlot.png", width = 8, height = 6)
 # based on the Feature Scatter plot, we can further filter artefacts
 # A) if cells accumulate in lower right corner of the plot [Count=150k, Fetaure=10k], indicates exp captured few genes which are sequenced repeatedly, leading to high transcript counts
 # B) if cells accumulate in the top left corner [Count=20k, Feature=30k], indicates exp captured a high number of genes but they were not deeply sequenced 
@@ -120,8 +120,9 @@ ggsave("./Data/VariableFeaturesPlot.png", width = 8, height = 6)
 # To remove unwanted sources of variation due to biology, like being in different stages of the cell cycle or technical noise from batch effects, we scale.
 # scaling --> highly expressed genes dont dominate ds analysis (PCA, clustering, etc)
 
-# scale across all genes
-allgenes <- rownames(seurat_nsclc)
+# scale across *variable genes only* --> for limited RAM
+allgenes <- head(VariableFeatures(seurat_nsclc), 2000) 
+  # rownames(seurat_nsclc)
 head(allgenes)
 seurat_nsclc <- ScaleData(seurat_nsclc, features=allgenes)
 str(seurat_nsclc)
@@ -137,9 +138,9 @@ seurat_nsclc <- RunPCA(seurat_nsclc, features = VariableFeatures(seurat_nsclc))
 # visualise
 print(seurat_nsclc[["pca"]], dim=1:5, nfeatures=5)
 DimHeatmap(seurat_nsclc, dims=1:5, cells=500, balanced=TRUE)
+ggsave("./Data/PC_VariableFeatures_Heatmap.png", width = 8, height = 6)
 # heatmap:
 #   X== cells, y== PC components, yellow== high expression, purple == low expression 
-ggsave("./Data/PC_Heatmap.png", width = 8, height = 6)
 
 # determine dimensionality of data 
 # use elbow plot to ID significant PCs which capture majority of biological signals 
@@ -153,21 +154,24 @@ ElbowPlot(seurat_nsclc)
 seurat_nsclc <- FindNeighbors(seurat_nsclc, dims=1:15)
 seurat_nsclc <- FindClusters(seurat_nsclc, resolution = c(0.1, 0.3, 0.5, 0.7, 0.9, 1))
 # visualise the differnet resolutions 
-DimPlot(seurat_nsclc, group.by = "RNA_snn_res.0.1", label-TRUE)
+DimPlot(seurat_nsclc, group.by = "RNA_snn_res.0.1", label=TRUE)
+ggsave("./Data/DimPlot_Resolution.0.1.png", width = 8, height = 6)
+
 DimPlot(seurat_nsclc, group.by = "RNA_snn_res.0.3", label=TRUE)
+ggsave("./Data/DimPlot_Resolution.0.3.png", width = 8, height = 6)
+
 DimPlot(seurat_nsclc, group.by = "RNA_snn_res.0.5", label=TRUE)
-# Here, we see that resolution of 0.1 has good clustering and the subsequent increases in res do not change the clusters much, so we can stick to 0.1
+ggsave("./Data/DimPlot_Resolution.0.5.png", width = 8, height = 6)
+# Here, we see that resolution of 0.3 has good clustering and the subsequent increases in res do not change the clusters much, so we can stick to 0.3
 
 # set ID of clusters
 Idents(seurat_nsclc) # levels indicate number of clusters 
-Idents(seurat_nsclc) <- "RNA_snn_res.0.1" # set identity w resolution 
+Idents(seurat_nsclc) <- "RNA_snn_res.0.3" # set identity w resolution 
 Idents(seurat_nsclc)
 
 ## Non Linear Clustering - TSNE//UMAP ----
 # After clustering, group cells of similar types together at low dim
 
-# install UMAP
-reticulate::py_install(packages = "umap_learn")
-
 seurat_nsclc <- RunUMAP(seurat_nsclc, dims=1:15)
 DimPlot(seurat_nsclc, reduction = "umap", label=TRUE)
+ggsave("./Data/UMAP_VariableGenes.png", width = 8, height = 6)
