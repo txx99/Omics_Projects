@@ -1,5 +1,5 @@
 # set working dir
-setwd("C:\\Users\\liv_u\\Desktop\\GitHub\\Omics_Projects\\scRNA_analysis")
+setwd("C:\\Users\\liv_u\\Desktop\\GitHub\\Omics_Projects\\scRNA_analysis\\Seurat_tutorial")
 
 # scRNA Data Analysis in R
 # Following [Arpudhamary V.'s](https://github.com/Marydoss-25/scRNA-Data-analysis-) tutorial for beginners in scRNA analysis, this notebook will learn to use the Seurat package and will perform:,
@@ -42,8 +42,9 @@ nsclc_counts<- nsclc_raw$`Gene Expression`
 str(nsclc_counts) 
 rm(nsclc_raw)
 
-# create seurat obj
+# CreateSeuratObject(counts = count_df, min.cells= min_cell_count_for_feature_inclusion, min.features= min features count for cell inclusion, project= "Project name, shows as orig.ident col")
 seurat_nsclc <- CreateSeuratObject(counts = nsclc_counts, project="NSCLC", min.cells = 3, min.features = 200)
+# https://satijalab.github.io/seurat-object/reference/CreateSeuratObject.html
 
 # Code ----
 ## QC -------------------------
@@ -65,6 +66,7 @@ range(seurat_nsclc$nCount_RNA) # range of transcript values
 range(seurat_nsclc$nFeature_RNA) # range of genes expression values
 
 # percent mitochondrial genes
+# df[["colName"]] <- PercentageFeatureSet(df, pattern="^MT-" (for human mitochon genes))
 seurat_nsclc[["percent.MT"]] <- PercentageFeatureSet(seurat_nsclc, pattern="^MT-")
 View(seurat_nsclc@meta.data)
 
@@ -91,6 +93,8 @@ ggsave("./Data/ScatterPlot.png", width = 8, height = 6)
 # filter for cells with: less than 5% MT genes & 200 to 2500 genes (<200 is low quality cell, >2500 is likely low depth?) 
     # NOTE: the threshold you sets depends on your data and tissue; heart tissue has higher MT content while lymphocytes have lower MT content.
 
+# subset(df, subset= nCount_RNA <> condition1 & nFeature_RNA <> condition 2 & percent.MT <> condition3)
+    # cutoffs based on Violin tails + normal range for this cell type
 seurat_nsclc <- subset(seurat_nsclc, subset=nFeature_RNA>200 & nFeature_RNA<2500 & percent.MT<5)
 
 
@@ -147,9 +151,9 @@ ggsave("./Data/PC_VariableFeatures_Heatmap.png", width = 8, height = 6)
 ElbowPlot(seurat_nsclc)
 
 ## Clustering ----------------------------
-# Find neighbours 
+# > Find neighbours 
 # -> Find clusters; resolution of clusters: lower number == fewer clusters; resolution ranges 0 to 1 or more to see the best clusters
-# -> Choose the best resolution using DimPlot
+# --> Choose the best resolution using DimPlot
 
 seurat_nsclc <- FindNeighbors(seurat_nsclc, dims=1:15)
 seurat_nsclc <- FindClusters(seurat_nsclc, resolution = c(0.1, 0.3, 0.5, 0.7, 0.9, 1))
@@ -164,7 +168,7 @@ DimPlot(seurat_nsclc, group.by = "RNA_snn_res.0.5", label=TRUE)
 ggsave("./Data/DimPlot_Resolution.0.5.png", width = 8, height = 6)
 # Here, we see that resolution of 0.3 has good clustering and the subsequent increases in res do not change the clusters much, so we can stick to 0.3
 
-# set ID of clusters
+# ID cells to their clusters
 Idents(seurat_nsclc) # levels indicate number of clusters 
 Idents(seurat_nsclc) <- "RNA_snn_res.0.3" # set identity w resolution 
 Idents(seurat_nsclc)
