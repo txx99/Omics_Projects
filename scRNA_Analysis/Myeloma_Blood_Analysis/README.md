@@ -9,7 +9,7 @@ between sample sources.
 **main.R**: the main script for this analysis. 
 ### ./Data/
 The dataset is not uploaded to this repository due to GitHub size constraints. Details on the dataset can be found under 'Credits'. \
-**Plots/UMAP_namedClusters.png** &  **/Plots/UMAP_namedClusters_color2.png**: the final annotated UMAP outputs in different colour-schemes. \
+**Plots/UMAP_namedClusters.png** &  **Plots/UMAP_namedClusters_color2.png**: the final annotated UMAP outputs in different colour-schemes. \
 **Plots/Marker_FeaturePlots**: folder containing various cell-marker gene sets used to verify cluster identities.
 
 ## Credits
