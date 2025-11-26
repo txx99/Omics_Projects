@@ -9,4 +9,4 @@ We perform DEA using R's limma package and attempt to recreate the authors' enha
 Original group project investigating how well in vitro samples retain the stem-like characteristics seen in the initial biopsy tissue of high-grade serous ovarian cancer. We perform DEA and GSEA, with visualisations using PCA, heatmap, and volcano plots.
 
 ## scRNA Analysis
-Following [Arpudhamary V.'s](https://github.com/Marydoss-25/scRNA-Data-analysis-) tutorial for beginners in scRNA analysis, this notebook will learn to use the Seurat package to perform scRNA data analysis, including IDing highly variable genes, dimensionality reduction, clustering, and cluster visualisation. 
+Various scRNA sequence analysis projects, currently using the Seurat package and datasets from 10x Genomics. Includes IDing highly variable genes, dimensionality reduction, clustering, and cluster annotation.
