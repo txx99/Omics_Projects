@@ -1,5 +1,5 @@
 # set working dir
-setwd("C:\\Users\\liv_u\\Desktop\\GitHub\\Omics_Projects\\scRNA_analysis\\Seurat_tutorial")
+setwd("path/to/folder")
 
 # scRNA Data Analysis in R
 # Following [Arpudhamary V.'s](https://github.com/Marydoss-25/scRNA-Data-analysis-) tutorial for beginners in scRNA analysis, this notebook will learn to use the Seurat package and will perform:,
@@ -150,13 +150,23 @@ ggsave("./Data/PC_VariableFeatures_Heatmap.png", width = 8, height = 6)
 # use elbow plot to ID significant PCs which capture majority of biological signals 
 ElbowPlot(seurat_nsclc)
 
+
 ## Clustering ----------------------------
 # > Find neighbours 
-# -> Find clusters; resolution of clusters: lower number == fewer clusters; resolution ranges 0 to 1 or more to see the best clusters
-# --> Choose the best resolution using DimPlot
+# -> RunUMAP
+# --> Find clusters; resolution of clusters: lower number == fewer clusters; resolution ranges 0 to 1 or more to see the best clusters
+# ---> Choose the best resolution using DimPlot
 
 seurat_nsclc <- FindNeighbors(seurat_nsclc, dims=1:15)
+
+## Non Linear Clustering - TSNE//UMAP 
+# BEFORE resolution, group cells of similar types together at low dim
+seurat_nsclc <- RunUMAP(seurat_nsclc, dims=1:15)
+DimPlot(seurat_nsclc, reduction = "umap", label=TRUE)
+ggsave("./Data/UMAP_VariableGenes.png", width = 8, height = 6)
+
 seurat_nsclc <- FindClusters(seurat_nsclc, resolution = c(0.1, 0.3, 0.5, 0.7, 0.9, 1))
+
 # visualise the differnet resolutions 
 DimPlot(seurat_nsclc, group.by = "RNA_snn_res.0.1", label=TRUE)
 ggsave("./Data/DimPlot_Resolution.0.1.png", width = 8, height = 6)
@@ -173,9 +183,63 @@ Idents(seurat_nsclc) # levels indicate number of clusters
 Idents(seurat_nsclc) <- "RNA_snn_res.0.3" # set identity w resolution 
 Idents(seurat_nsclc)
 
-## Non Linear Clustering - TSNE//UMAP ----
-# After clustering, group cells of similar types together at low dim
 
-seurat_nsclc <- RunUMAP(seurat_nsclc, dims=1:15)
-DimPlot(seurat_nsclc, reduction = "umap", label=TRUE)
-ggsave("./Data/UMAP_VariableGenes.png", width = 8, height = 6)
+
+
+
+
+
+
+
+
+
+
+
+# ADDENDUM STEPS ------(not run in this script)---------------------------------------
+## Cluster Annotation ----
+
+# for faster Wilcox Rank Sum Test @FindAllMarkers():
+install.packages('devtools')
+devtools::install_github('immunogenomics/presto')
+
+# find the markers that are highly expressed in each cluster -> compare each cluster against all other clusters
+
+# FindMarkers() -> compare one cluster against another cluster
+# FindAllMarkers() -> compare each cluster against all other clusters
+# FindConservedMarkers() -> find markers conserved across a condition even in different clusters
+# looking at clusters of cell type and w/i cluster variations of condition type;
+
+
+markers <- FindAllMarkers(data, # ensure default assay is RNA w DefaultAssay(data)
+               logfc.threshold = 0.25, # 0.25 standard; min log2fc avg expression for considering a gene differentially expressed in one cluster over all the other clusters
+               min.pct = 0.1, # 0.1 standard; min % of cells in the cluster that must present the gene
+               only.pos= FALSE, # only want markers that are upregulated (not downregulated)
+               test.use = 'DESeq2', # if you want to specify package/test to use
+               slot = 'counts' # auto adjusts if not specified; appropriate input layer for the test being used (DESeq2 uses raw counts)
+               )
+
+# Output Interpretation:
+# avg_log2FC = log2FC seen in current cluster
+# pct.1 = in current cluster, % of cells presenting target gene 
+# pct.2 = in all other clusters, avg % of cells presenting target gene
+
+# create list of top upregulated DE genes per cluster
+for (i in 0:length(clusters){ 
+  genes <- head(markers[markers$cluster==i & markers$avg_log2FC>0, "gene"], 4)
+                                          # markers$avg_log2FC>0 may be needed if only.pos=FALSE
+  assign(paste0("group_", i), genes)
+}
+
+# FeaturePlot of top upregulated genes of each cluster  
+print(FeaturePlot(sdf, features = group_18, min.cutoff = "q10"))
+
+# FeatuerPlot of specific cell type markers
+geneset<- c('GZMB', 'TCF4', 'IRF7', 'CLEC4C', 'IL3RA', 'LILRA4')
+print(FeaturePlot(sdf, features = geneset, min.cutoff = "q10"))
+
+# ! ! !
+# May need to return to resolution step to adjust clusters // return to FindMarkers step to adjust parameters
+# ! ! !
+
+# rename clusters 
+data<- RenameIdents(data, `0`= 'Expected cluster identity')
