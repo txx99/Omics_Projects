@@ -26,11 +26,6 @@ library(tidyverse)
 # Source: 20k Mixture of NSCLC DTCs from 7 donors, 3' v3.1 (without intronic reads), Universal 3' dataset analyzed using Cell Ranger 6.1.2, 10x Genomics, (2021, August 09).
 # Link: https://www.10xgenomics.com/datasets/20-k-mixture-of-nsclc-dt-cs-from-7-donors-3-v-3-1-3-1-standard-6-1-0
 
-# Gene Expression - Feature / cell matrix HDF5 (raw)
-# Pooled multiplexed sample:   
-#   Estimated number of cells: 16,443
-#   Cells assigned to a sample: 12,231
-# This dataset is licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0) license.
 
 ## Load data ----
   # Read10X_h5(filename, use.names = TRUE, unique.features = TRUE)
@@ -42,7 +37,7 @@ nsclc_counts<- nsclc_raw$`Gene Expression`
 str(nsclc_counts) 
 rm(nsclc_raw)
 
-# CreateSeuratObject(counts = count_df, min.cells= min_cell_count_for_feature_inclusion, min.features= min features count for cell inclusion, project= "Project name, shows as orig.ident col")
+# CreateSeuratObject(counts = count_df, min.cells= 3 min_cell_count_for_feature_inclusion, min.features= 200 min features count for cell inclusion, project= "Project name, shows as orig.ident col")
 seurat_nsclc <- CreateSeuratObject(counts = nsclc_counts, project="NSCLC", min.cells = 3, min.features = 200)
 # https://satijalab.github.io/seurat-object/reference/CreateSeuratObject.html
 

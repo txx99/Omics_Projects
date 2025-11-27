@@ -31,7 +31,7 @@ FeatureScatter(sdf, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")+geom_smo
 ggsave("./Data/Plots/nCount_nFeature_Scatterplot.png")
 
 # see some genes high transcript counts --> filter cells based on Violin tails
-sdf <- subset(sdf, subset =  nCount_RNA < 20000 & nFeature_RNA > 200 & nFeature_RNA < 4500 & percent.MT<10) #percent.MT filtering not useful here due to small range
+sdf <- subset(sdf, subset =  nCount_RNA < 20000 & nFeature_RNA > 200 & nFeature_RNA < 3500 & percent.MT<10) #percent.MT filtering not useful here due to small range
 
 sdf <- NormalizeData(sdf, normalization.method = 'LogNormalize', scale.factor = 10000)
 
@@ -140,4 +140,7 @@ ggsave('./Data/Plots/UMAP_namedClusters_color2.png', height=8, width=10)
 
 # save data
 saveRDS(sdf, file= "./Data/seuratObject_namedClusters.rds")
+
+
+
 
