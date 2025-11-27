@@ -1,0 +1,42 @@
+Some of the gene sets used as cell subtype markers for cluster annotation, based on CellMarker2.0 database's 'Cell Search' tool and ChatGPT 5.1's guidance.
+
+
+# CD8 markers:
+  'CD8A', 'CD8B', 'CD3D', 'CD8'
+# CD8+ memory
+  'CD8A', 'CD8B', 'CD3', 'CXCR3', 'FGFBP2', 'KLRG1', 'CD38', 'GNLY'
+# Naive CD8 T
+  'CCR7', 'LEF1', 'TCF7', 'CD45RA', 'CD3D', 'SELL'
+
+# NK markers:
+  'GZMB', 'GZMA', 'KLRD1', 'KLRK1', 'NCAM1'
+# gamma delta T:
+  'TRDC', 'TRGC1', 'TRGC2'
+
+# pDC
+  'GZMB', 'TCF4', 'IRF7', 'CLEC4C', 'IL3RA', 'LILRA4'
+
+# B cell
+  'CD19', 'MS4A1', 'CD79A', 'CD79B'
+
+# monocytes general
+  'CD14', 'S100A8', 'CD16', 'LYZ', 'CD3', 'CST3', 'VCAN'
+# non classical monocytes:
+  'FCGR3A', 'CX3CR1', 'MS4A7', 'LILRB1', 'LILRB2', 'CDKN1C', 'TNFSF10'
+# classical monocytes inflammatory
+  "S100A8","S100A9","S100A12",   "FCN1","VCAN"
+
+# antigen oresenting monocytes (classical)
+    "HLA-DRA","HLA-DRB1","HLA-DPA1","HLA-DPB1","HLA-DQA1","HLA-DQB1",    "CD74","CTSB","CTSD"
+
+# megakaryocyte (/platelets):
+  'TUBB1', 'PPBP', 'PF4', 'CAVIN2'
+
+
+
+# basophil markers:
+  'HDC', 'CLC', 'KIT', 'IL3RA'
+# erythrocytes
+  'ALAS2', 'CD71', 'HBB', 'GATA1'
+# neutrophil
+  'CD66B', 'CGM6', 'CD16', 'FCGR3A', 'CD11B', 'ITGAM', 'CD10', 'MME', 'S100A8', 'S100A9', 'FCGR3B', 'MPO'
